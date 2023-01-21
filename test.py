@@ -1,6 +1,6 @@
 import argparse
 from utils import *
-from model import RDN
+from model import *
 import glob
 from torchvision import transforms
 import cv2
@@ -31,12 +31,9 @@ if __name__ == '__main__':
     if not os.path.isdir(save_path):
         os.makedirs(save_path)
     net = PSRNet(scale_factor = args.scale,
-              num_channels=args.c_dim,
-              num_features = args.G0,
-              growth_rate = args.G,
+              in_channels=args.c_dim,
               num_blocks = args.D,
               num_layers = args.C,
-              ks = args.kernel_size
               )
     net.to(device)
     checkpoint_path = os.path.join(args.checkpoint_dir, date)

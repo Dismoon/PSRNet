@@ -42,9 +42,6 @@ if __name__ == '__main__':
     parser.add_argument('--train_set_label', type=str,default='train/label',help='name of the label of train set')
     parser.add_argument('--D', type=int,default=16,help='the number of D')
     parser.add_argument('--C', type=int,default=8,help='the number of C')
-    parser.add_argument('--G', type=int,default=64,help='the number of G')
-    parser.add_argument('--G0', type=int,default=64,help='the number of G0')
-    parser.add_argument('--kernel_size',type=int, default=3,help='the size of kernel')
     args = parser.parse_args(args=[])
     date = time.strftime('%Y.%m.%d', time.localtime(time.time()))
     # set random seed
@@ -58,30 +55,25 @@ if __name__ == '__main__':
     train_data=DataFromH5File(train_data_path)
     valid_data_path=os.path.join(args.checkpoint_dir, "eval.h5")
     valid_data=DataFromH5File(valid_data_path)
-    # train_data = imgdata(args.train_set_input, args.train_set_label)
-    # valid_data = imgdata_val(args.eval_set_input, args.eval_set_label)
     train_loader = DataLoader(train_data, args.batch_size, shuffle=True,num_workers=8)
     valid_loader = DataLoader(valid_data, 1)
     print(f'Number of validating images:{len(valid_loader)}')
 
     # set the model
     net = PSRNet(scale_factor = args.scale,
-              num_channels=args.c_dim,
-              num_features = args.G0,
-              growth_rate = args.G,
+              in_channels=args.c_dim,
               num_blocks = args.D,
-              num_layers = args.C,
-              ks = args.kernel_size)
+              num_layers = args.C
+             )
     # Initialize the parameters of the net权重初始化
     net.initialize_weight()
     net.to(device)
 
     # loss function
     loss_fn = PALoss()
-    loss_pixel=nn.MSELoss()
     # optimizer
     optimizer = torch.optim.Adam(net.parameters(), args.learning_rate)
-    print("初始化的学习率：", optimizer.defaults['lr'])
+    print("Initialized learning rate：", optimizer.defaults['lr'])
     # scheduler
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer,args.lr_decay_steps*len(train_loader),args.lr_decay_rate)
 
@@ -124,7 +116,7 @@ if __name__ == '__main__':
             inputs = inputs.to(device)
             labels = labels.to(device)
             pred = net(inputs)
-            loss,loss_p,loss_a,loss_d,loss_s0,wa,wd,ws0 = loss_fn(pred, labels)
+            loss,loss_p,loss_a,loss_d = loss_fn(pred, labels)
             # backward
             optimizer.zero_grad()
             loss.backward()
@@ -134,7 +126,7 @@ if __name__ == '__main__':
             # Update weight
             optimizer.step()
             scheduler.step()
-            # print("第%d个epoch的学习率：%f" % (epoch, optimizer.param_groups[0]['lr']))
+
             if iter % 20 == 0:
                 psnr = cal_psnr(pred, labels).item()
 
@@ -149,7 +141,7 @@ if __name__ == '__main__':
                 aop_psnr=cal_psnr(pred_aop, labels_aop).item()
                 dolp_psnr=cal_psnr(pred_dolp, labels_dolp).item()
                 print('Training: Epoch[{:0>3}/{:0>3}] Iteration[{:0>3}/{:0>3}] time[{:.4f}min]'
-                      ' Loss_mean[{:.9f}] PSNR[{:.4f}] PSNR_AoP[{:.4f}] PSNR_DoLP[{:.4f}] LR[{:.7f}] Loss_total[{:.9f}] Loss_P[{:.9f}] Loss_A[{:.9f}] Loss_D[{:.9f}] Loss_S0[{:.9f}] wa, wd, ws0[{:.4f},{:.4f},{:.4f}]'
+                      ' Loss_mean[{:.9f}] PSNR[{:.4f}] PSNR_AoP[{:.4f}] PSNR_DoLP[{:.4f}] LR[{:.7f}] Loss_total[{:.9f}] Loss_P[{:.9f}] Loss_A[{:.9f}] Loss_D[{:.9f}]'
                       .format(epoch + 1,
                               Epoch,
                               i + 1,
@@ -163,9 +155,7 @@ if __name__ == '__main__':
                               loss.item(),
                               loss_p,
                               loss_a,
-                              loss_d,
-                              loss_s0,
-                              wa, wd, ws0
+                              loss_d
                               )
                       )
                 loss_mean = 0
@@ -184,10 +174,6 @@ if __name__ == '__main__':
 
             with torch.no_grad():
                 preds = net(inputs)
-            # preds=preds.squeeze(0)
-            # labels=labels.squeeze(0)
-
-            # psnr = cal_psnr(preds, labels).item()
 
             S0, S1, S2 = cal_stokes(preds)
             pred_aop = cal_aop(S1, S2)
@@ -201,7 +187,7 @@ if __name__ == '__main__':
             dolp_psnr=cal_psnr(pred_dolp, labels_dolp).item()
 
             counter=counter+1
-            psnr_mean =psnr_mean+aop_psnr+dolp_psnr#item()取出单元素张量的元素值并返回该值，保持原元素类型不变
+            psnr_mean =psnr_mean+aop_psnr+dolp_psnr
         psnr_mean=psnr_mean/counter
         print('eval psnr: {:.2f}'.format(psnr_mean))
 
